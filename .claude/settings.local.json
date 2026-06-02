@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn compile *)",
+      "Bash(rm -rf frontend)",
+      "Bash(npm create *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(mysql *)",
+      "Bash(sc query *)",
+      "Bash(mysqld --console)",
+      "Bash(mkdir \"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.4\\\\data\")",
+      "Bash(mysqld --initialize-insecure --console)",
+      "Bash(java --version)",
+      "Bash(mvn --version)",
+      "Bash(mvn spring-boot:run)",
+      "Bash(mvn spring-boot:run -DskipTests -Dmaven.test.skip=true)",
+      "Bash(curl *)"
+    ]
+  }
+}
