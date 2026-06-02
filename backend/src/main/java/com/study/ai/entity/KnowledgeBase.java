@@ -19,6 +19,8 @@ public class KnowledgeBase {
 
     private String content;
 
+    private String tags;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

@@ -1,5 +1,6 @@
 package com.study.ai.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.study.ai.entity.KnowledgeBase;
 import com.study.ai.mapper.KnowledgeBaseMapper;
 import org.springframework.web.bind.annotation.*;
@@ -26,10 +27,14 @@ public class KnowledgeController {
     }
 
     /**
-     * 查询知识库列表
+     * 查询知识库列表，支持按标签筛选
      */
     @GetMapping("/list")
-    public List<KnowledgeBase> list() {
+    public List<KnowledgeBase> list(@RequestParam(required = false) String tag) {
+        if (tag != null && !tag.isBlank()) {
+            return knowledgeBaseMapper.selectList(
+                    new QueryWrapper<KnowledgeBase>().like("tags", tag));
+        }
         return knowledgeBaseMapper.selectList(null);
     }
 

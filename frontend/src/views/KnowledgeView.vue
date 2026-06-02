@@ -11,8 +11,22 @@
       </button>
     </div>
 
+    <!-- 标签筛选栏 -->
+    <div v-if="allTags.length > 0" class="tag-filter-bar">
+      <button
+        :class="['tag-filter', { active: activeFilterTag === '' }]"
+        @click="activeFilterTag = ''; currentPage = 1"
+      >全部</button>
+      <button
+        v-for="tag in allTags"
+        :key="tag"
+        :class="['tag-filter', { active: activeFilterTag === tag }]"
+        @click="activeFilterTag = tag; currentPage = 1"
+      >{{ tag }}</button>
+    </div>
+
     <!-- 卡片网格 -->
-    <div v-if="knowledgeList.length > 0" class="card-grid">
+    <div v-if="filteredList.length > 0" class="card-grid">
       <article
         v-for="(item, idx) in pagedData"
         :key="item.id"
@@ -23,6 +37,14 @@
         <h3 class="card-title">{{ item.title }}</h3>
         <p class="card-content">{{ item.content }}</p>
         <div class="card-footer">
+          <div class="card-tags" v-if="parseTags(item.tags).length > 0">
+            <span
+              v-for="tag in parseTags(item.tags)"
+              :key="tag"
+              class="card-tag"
+              @click.stop="activeFilterTag = tag; currentPage = 1"
+            >{{ tag }}</span>
+          </div>
           <span class="card-time">{{ formatTime(item.createTime) }}</span>
           <button class="card-delete" @click.stop="deleteKnowledge(item.id)" title="删除">
             <el-icon :size="15"><Delete /></el-icon>
@@ -34,16 +56,16 @@
     <!-- 空状态 -->
     <div v-else class="empty-state">
       <div class="empty-icon">📝</div>
-      <h3>知识库还是空的</h3>
-      <p>点击上方按钮添加你的第一篇笔记</p>
+      <h3>{{ activeFilterTag ? '没有匹配的笔记' : '知识库还是空的' }}</h3>
+      <p>{{ activeFilterTag ? '试试其他标签筛选' : '点击上方按钮添加你的第一篇笔记' }}</p>
     </div>
 
     <!-- 分页 -->
-    <div v-if="knowledgeList.length > pageSize" class="pagination-wrap">
+    <div v-if="filteredList.length > pageSize" class="pagination-wrap">
       <el-pagination
         v-model:current-page="currentPage"
         :page-size="pageSize"
-        :total="knowledgeList.length"
+        :total="filteredList.length"
         layout="prev, pager, next"
         background
       />
@@ -60,6 +82,9 @@
     >
       <!-- 查看模式 -->
       <template v-if="dialogMode === 'view'">
+        <div v-if="parseTags(detailItem?.tags).length > 0" class="detail-tags">
+          <span v-for="tag in parseTags(detailItem?.tags)" :key="tag" class="card-tag">{{ tag }}</span>
+        </div>
         <div class="detail-content">{{ detailItem?.content }}</div>
         <div class="detail-meta">
           <span>创建于 {{ formatTime(detailItem?.createTime) }}</span>
@@ -72,6 +97,26 @@
         <div class="form-group">
           <label class="form-label">标题</label>
           <input v-model="form.title" class="form-input" placeholder="输入笔记标题" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">标签</label>
+          <el-select
+            v-model="formTags"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            placeholder="输入标签后回车添加"
+            class="tag-select"
+            :reserve-keyword="false"
+          >
+            <el-option
+              v-for="tag in allTags"
+              :key="tag"
+              :label="tag"
+              :value="tag"
+            />
+          </el-select>
         </div>
         <div class="form-group">
           <label class="form-label">内容</label>
@@ -99,25 +144,52 @@ const API_BASE = 'http://localhost:8080/api/knowledge'
 const knowledgeList = ref([])
 const loadingTable = ref(false)
 const dialogVisible = ref(false)
-const dialogMode = ref('add')        // 'add' | 'view'
+const dialogMode = ref('add')
 const detailItem = ref(null)
 const submitting = ref(false)
+const activeFilterTag = ref('')
 
 const form = ref({
   title: '',
   content: '',
   userId: 1
 })
+const formTags = ref([])
 
 const currentPage = ref(1)
 const pageSize = ref(6)
+
+// 所有标签（从数据中提取）
+const allTags = computed(() => {
+  const set = new Set()
+  knowledgeList.value.forEach(item => {
+    parseTags(item.tags).forEach(t => set.add(t))
+  })
+  return [...set].sort()
+})
+
+// 按标签筛选
+const filteredList = computed(() => {
+  if (!activeFilterTag.value) return knowledgeList.value
+  return knowledgeList.value.filter(item => {
+    const tags = parseTags(item.tags)
+    return tags.includes(activeFilterTag.value)
+  })
+})
+
 const pagedData = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
-  return knowledgeList.value.slice(start, start + pageSize.value)
+  return filteredList.value.slice(start, start + pageSize.value)
 })
 
 function rowIndex(index) {
   return (currentPage.value - 1) * pageSize.value + index + 1
+}
+
+function parseTags(tags) {
+  if (!tags) return []
+  if (Array.isArray(tags)) return tags
+  return tags.split(',').map(t => t.trim()).filter(Boolean)
 }
 
 function formatTime(t) {
@@ -128,7 +200,10 @@ function formatTime(t) {
 async function loadList() {
   loadingTable.value = true
   try {
-    const res = await axios.get(`${API_BASE}/list`)
+    const url = activeFilterTag.value
+      ? `${API_BASE}/list?tag=${encodeURIComponent(activeFilterTag.value)}`
+      : `${API_BASE}/list`
+    const res = await axios.get(url)
     knowledgeList.value = res.data || []
   } catch (e) {
     knowledgeList.value = []
@@ -140,6 +215,7 @@ async function loadList() {
 function openAddDialog() {
   dialogMode.value = 'add'
   form.value = { title: '', content: '', userId: 1 }
+  formTags.value = []
   dialogVisible.value = true
 }
 
@@ -161,7 +237,8 @@ async function submitKnowledge() {
   }
   submitting.value = true
   try {
-    await axios.post(`${API_BASE}/add`, form.value)
+    const payload = { ...form.value, tags: formTags.value.join(',') }
+    await axios.post(`${API_BASE}/add`, payload)
     ElMessage.success('笔记添加成功')
     dialogVisible.value = false
     currentPage.value = 1
@@ -206,7 +283,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .knowledge-header h2 {
@@ -247,6 +324,38 @@ onMounted(() => {
 .btn-add:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 22px rgba(79, 172, 254, 0.4);
+}
+
+/* ========== 标签筛选栏 ========== */
+.tag-filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.tag-filter {
+  padding: 6px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 20px;
+  background: #fff;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.tag-filter:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.tag-filter.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border-color: transparent;
 }
 
 /* ========== 卡片网格 ========== */
@@ -314,9 +423,34 @@ onMounted(() => {
 .card-footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   border-top: 1px solid #f3f4f6;
   padding-top: 14px;
+  flex-wrap: wrap;
+}
+
+.card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.card-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 550;
+  border-radius: 6px;
+  background: rgba(142, 197, 252, 0.18);
+  color: #4a7bbf;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.card-tag:hover {
+  background: rgba(142, 197, 252, 0.35);
 }
 
 .card-time {
@@ -326,6 +460,7 @@ onMounted(() => {
   background: rgba(142, 197, 252, 0.18);
   padding: 4px 10px;
   border-radius: 6px;
+  white-space: nowrap;
 }
 
 .card-delete {
@@ -340,6 +475,8 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .card-delete:hover {
@@ -427,6 +564,15 @@ onMounted(() => {
   color: #c4c4c4;
 }
 
+.tag-select {
+  width: 100%;
+}
+
+/* 穿透样式覆盖 el-select */
+.tag-select :deep(.el-select__tags) {
+  max-height: none;
+}
+
 .form-actions {
   display: flex;
   justify-content: flex-end;
@@ -434,7 +580,6 @@ onMounted(() => {
   margin-top: 8px;
 }
 
-/* 按钮 */
 .btn-cancel {
   padding: 10px 22px;
   background: #f3f4f6;
@@ -448,9 +593,7 @@ onMounted(() => {
   font-family: inherit;
 }
 
-.btn-cancel:hover {
-  background: #e5e7eb;
-}
+.btn-cancel:hover { background: #e5e7eb; }
 
 .btn-save {
   padding: 10px 24px;
@@ -470,12 +613,16 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-.btn-save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+.btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ========== 详情弹窗 ========== */
+.detail-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
 .detail-content {
   font-size: 15px;
   line-height: 1.75;
@@ -498,11 +645,7 @@ onMounted(() => {
 
 /* ========== 响应式 ========== */
 @media (max-width: 768px) {
-  .card-grid {
-    grid-template-columns: 1fr;
-  }
-  .knowledge-container {
-    padding: 20px 16px;
-  }
+  .card-grid { grid-template-columns: 1fr; }
+  .knowledge-container { padding: 20px 16px; }
 }
 </style>

@@ -10,12 +10,11 @@
       </div>
       <div class="session-list">
         <div
-          v-for="session in sessions"
+          v-for="session in store.sessions"
           :key="session.id"
-          :class="['session-item', { active: activeSessionId === session.id }]"
+          :class="['session-item', { active: store.activeSessionId === session.id }]"
           @click="selectSession(session)"
         >
-          <!-- 改名模式 -->
           <input
             v-if="editingSessionId === session.id"
             v-model="editTitle"
@@ -24,10 +23,7 @@
             @keydown.enter="confirmRename(session)"
             @keydown.esc="cancelRename"
             @click.stop
-            ref="renameInputRef"
           />
-
-          <!-- 普通显示 -->
           <span
             v-else
             class="session-title"
@@ -35,16 +31,11 @@
             title="双击修改名称"
           >{{ session.title }}</span>
 
-          <button
-            class="btn-delete-session"
-            @click.stop="deleteSession(session.id)"
-            title="删除会话"
-          >
+          <button class="btn-delete-session" @click.stop="deleteSession(session.id)" title="删除会话">
             <el-icon :size="13"><Close /></el-icon>
           </button>
         </div>
-
-        <div v-if="sessions.length === 0" class="no-sessions">
+        <div v-if="store.sessions.length === 0" class="no-sessions">
           暂无会话，点击 + 创建
         </div>
       </div>
@@ -52,23 +43,21 @@
 
     <!-- 右侧主聊天区域 -->
     <section class="main-chat">
-      <!-- 消息列表 -->
       <div class="message-area" ref="messageArea">
-        <!-- 欢迎页（无消息时） -->
-        <div v-if="currentMessages.length === 0 && !loading" class="welcome">
+        <div v-if="store.currentMessages.length === 0 && !loading" class="welcome">
           <div class="welcome-icon">✦</div>
           <h2>开始新的对话</h2>
           <p>在下方输入你的问题，AI 助手将竭诚为你解答</p>
         </div>
 
-        <div v-for="(msg, index) in currentMessages" :key="index"
+        <div v-for="(msg, index) in store.currentMessages" :key="index"
           :class="['message-row', msg.role === 'user' ? 'row-user' : 'row-ai']">
           <div :class="['bubble', msg.role === 'user' ? 'bubble-user' : 'bubble-ai']">
-            <div class="bubble-text">{{ msg.content }}</div>
+            <div v-if="msg.role === 'user'" class="bubble-text">{{ msg.content }}</div>
+            <div v-else class="bubble-text markdown-body" v-html="renderMarkdown(msg.content)"></div>
           </div>
         </div>
 
-        <!-- 加载中 -->
         <div v-if="loading" class="message-row row-ai">
           <div class="bubble bubble-ai bubble-loading">
             <span class="dot-pulse"></span>
@@ -85,7 +74,6 @@
             placeholder="输入你的问题..."
             rows="1"
             @keydown="handleKeydown"
-            ref="inputRef"
           ></textarea>
           <button
             class="btn-send"
@@ -115,21 +103,42 @@
 <script setup>
 import { ref, nextTick, onMounted } from 'vue'
 import axios from 'axios'
+import MarkdownIt from 'markdown-it'
+import hljs from 'highlight.js'
+import { useChatStore } from '../stores/chatStore'
 
 const API_BASE = 'http://localhost:8080/api'
+const store = useChatStore()
 
-const sessions = ref([])
-const activeSessionId = ref(null)
-const currentMessages = ref([])
+// ---------- Markdown 渲染器 ----------
+const md = new MarkdownIt({
+  html: false,
+  linkify: true,
+  breaks: true,
+  highlight(str, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return '<pre class="hljs"><code>' +
+          hljs.highlight(str, { language: lang, ignoreIllegals: true }).value +
+          '</code></pre>'
+      } catch (_) {}
+    }
+    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
+  }
+})
 
+function renderMarkdown(text) {
+  if (!text) return ''
+  return md.render(text)
+}
+
+// ---------- 本地状态 ----------
 const inputText = ref('')
 const loading = ref(false)
 const messageArea = ref(null)
-const inputRef = ref(null)
 
 const editingSessionId = ref(null)
 const editTitle = ref('')
-const renameInputRef = ref(null)
 
 const deleteDialogVisible = ref(false)
 const deleteTargetId = ref(null)
@@ -140,19 +149,20 @@ const DEFAULT_GREETING = '你好，我是你的AI智能助学助手，在学习�
 // ==================== 生命周期 ====================
 onMounted(async () => {
   await loadSessions()
-  if (sessions.value.length > 0) {
-    activeSessionId.value = sessions.value[0].id
-    await loadMessages(sessions.value[0].id)
+  if (store.sessions.length > 0) {
+    store.setActiveSession(store.sessions[0].id)
+    await loadMessages(store.sessions[0].id)
   } else {
     await autoCreateSession()
   }
+  scrollToBottom()
 })
 
 // ==================== 会话管理 ====================
 async function loadSessions() {
   try {
     const res = await axios.get(`${API_BASE}/sessions`)
-    sessions.value = res.data || []
+    store.setSessions(res.data || [])
   } catch (e) {
     console.error('加载会话列表失败:', e)
   }
@@ -162,15 +172,15 @@ async function autoCreateSession() {
   try {
     const res = await axios.post(`${API_BASE}/sessions`, { userId: 1, title: '新对话' })
     const session = res.data
-    sessions.value = [session]
-    activeSessionId.value = session.id
+    store.addSession(session)
+    store.setActiveSession(session.id)
+    store.setMessages(session.id, [{ role: 'assistant', content: DEFAULT_GREETING }])
     await axios.post(`${API_BASE}/messages`, {
       sessionId: session.id, role: 'assistant', content: DEFAULT_GREETING
     })
-    currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
   } catch (e) {
     console.error('自动创建会话失败:', e)
-    currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
+    store.setMessages(0, [{ role: 'assistant', content: DEFAULT_GREETING }])
   }
 }
 
@@ -178,25 +188,26 @@ async function newConversation() {
   try {
     const res = await axios.post(`${API_BASE}/sessions`, { userId: 1, title: '新对话' })
     const session = res.data
-    sessions.value.unshift(session)
-    activeSessionId.value = session.id
+    store.addSession(session)
+    store.setActiveSession(session.id)
+    store.setMessages(session.id, [{ role: 'assistant', content: DEFAULT_GREETING }])
     await axios.post(`${API_BASE}/messages`, {
       sessionId: session.id, role: 'assistant', content: DEFAULT_GREETING
     })
-    currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
   } catch (e) {
     console.error('创建会话失败:', e)
   }
 }
 
 async function selectSession(session) {
-  if (activeSessionId.value === session.id) return
-  activeSessionId.value = session.id
+  if (store.activeSessionId === session.id) return
+  store.setActiveSession(session.id)
   await loadMessages(session.id)
+  scrollToBottom()
 }
 
 function deleteSession(id) {
-  const session = sessions.value.find(s => s.id === id)
+  const session = store.sessions.find(s => s.id === id)
   if (!session) return
   deleteTargetId.value = id
   deleteTargetTitle.value = session.title
@@ -206,14 +217,14 @@ function deleteSession(id) {
 async function confirmDelete() {
   try {
     await axios.delete(`${API_BASE}/sessions/${deleteTargetId.value}`)
-    sessions.value = sessions.value.filter(s => s.id !== deleteTargetId.value)
-    if (activeSessionId.value === deleteTargetId.value) {
-      if (sessions.value.length > 0) {
-        activeSessionId.value = sessions.value[0].id
-        await loadMessages(sessions.value[0].id)
+    const wasActive = store.activeSessionId === deleteTargetId.value
+    store.removeSession(deleteTargetId.value)
+    if (wasActive) {
+      if (store.sessions.length > 0) {
+        store.setActiveSession(store.sessions[0].id)
+        await loadMessages(store.sessions[0].id)
       } else {
-        activeSessionId.value = null
-        currentMessages.value = []
+        store.setActiveSession(null)
         await autoCreateSession()
       }
     }
@@ -239,7 +250,7 @@ async function confirmRename(session) {
   if (newTitle && newTitle !== session.title) {
     try {
       await axios.put(`${API_BASE}/sessions/${session.id}`, { title: newTitle })
-      session.title = newTitle
+      store.updateSessionTitle(session.id, newTitle)
     } catch (e) {
       console.error('重命名失败:', e)
     }
@@ -253,22 +264,20 @@ function cancelRename() {
 
 // ==================== 消息 ====================
 async function loadMessages(sessionId) {
-  currentMessages.value = []
   try {
     const res = await axios.get(`${API_BASE}/messages/${sessionId}`)
     if (res.data && res.data.length > 0) {
-      currentMessages.value = res.data.map(m => ({ role: m.role, content: m.content }))
+      store.setMessages(sessionId, res.data.map(m => ({ role: m.role, content: m.content })))
     } else {
-      currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
+      store.setMessages(sessionId, [{ role: 'assistant', content: DEFAULT_GREETING }])
       await axios.post(`${API_BASE}/messages`, {
-        sessionId: sessionId, role: 'assistant', content: DEFAULT_GREETING
+        sessionId, role: 'assistant', content: DEFAULT_GREETING
       })
     }
   } catch (e) {
     console.error('加载消息失败:', e)
-    currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
+    store.setMessages(sessionId, [{ role: 'assistant', content: DEFAULT_GREETING }])
   }
-  scrollToBottom()
 }
 
 function handleKeydown(e) {
@@ -286,31 +295,94 @@ function scrollToBottom() {
   })
 }
 
+// ==================== SSE 流式发送 ====================
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text || loading.value) return
-  if (!activeSessionId.value) await autoCreateSession()
+  if (!store.activeSessionId) await autoCreateSession()
 
-  currentMessages.value.push({ role: 'user', content: text })
+  const sid = store.activeSessionId
+
+  // 添加用户消息
+  store.addMessage(sid, { role: 'user', content: text })
   inputText.value = ''
   scrollToBottom()
 
-  const sid = activeSessionId.value
+  // 保存用户消息到后端
   axios.post(`${API_BASE}/messages`, { sessionId: sid, role: 'user', content: text })
     .catch(e => console.error('保存用户消息失败:', e))
 
+  // 添加占位 AI 消息
+  store.addMessage(sid, { role: 'assistant', content: '' })
   loading.value = true
+  scrollToBottom()
+
   try {
-    const res = await axios.post(`${API_BASE}/chat`, { message: text })
-    const reply = res.data.reply
-    currentMessages.value.push({ role: 'assistant', content: reply })
-    axios.post(`${API_BASE}/messages`, { sessionId: sid, role: 'assistant', content: reply })
-      .catch(e => console.error('保存AI回复失败:', e))
+    const response = await fetch(`${API_BASE}/chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    })
+
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullReply = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (!line.startsWith('event:') && !line.startsWith('data:')) continue
+
+        // SSE 事件名
+        let eventType = 'chunk'
+        let eventData = ''
+
+        if (line.startsWith('event:')) {
+          eventType = line.substring(6).trim()
+          continue  // 需要下一行才是 data
+        }
+        if (line.startsWith('data:')) {
+          eventData = line.substring(5).trim()
+        }
+
+        if (eventType === 'chunk' && eventData) {
+          fullReply += eventData
+          store.appendToLastAssistant(sid, eventData)
+          scrollToBottom()
+        } else if (eventType === 'done') {
+          fullReply = eventData || fullReply
+        } else if (eventType === 'error') {
+          store.appendToLastAssistant(sid, eventData || '请求失败，请稍后重试')
+        }
+      }
+    }
+
+    // 保存完整 AI 回复
+    if (fullReply) {
+      axios.post(`${API_BASE}/messages`, {
+        sessionId: sid, role: 'assistant', content: fullReply
+      }).catch(e => console.error('保存AI回复失败:', e))
+    }
   } catch (e) {
-    const fallback = '请求失败，请检查后端服务是否已启动。'
-    currentMessages.value.push({ role: 'assistant', content: fallback })
-    axios.post(`${API_BASE}/messages`, { sessionId: sid, role: 'assistant', content: fallback })
-      .catch(() => {})
+    console.error('SSE 流式请求失败:', e)
+    const msgs = store.currentMessages
+    const last = msgs[msgs.length - 1]
+    if (last && last.role === 'assistant' && last.content === '') {
+      last.content = '请求失败，请检查后端服务是否已启动。'
+    } else {
+      store.addMessage(sid, { role: 'assistant', content: '请求失败，请检查后端服务是否已启动。' })
+    }
   } finally {
     loading.value = false
     scrollToBottom()
@@ -323,7 +395,7 @@ async function sendMessage() {
 .chat-container {
   display: flex;
   height: 100%;
-  background: #f7f9fb;
+  background: transparent;
 }
 
 /* ========== 侧边栏 ========== */
@@ -410,10 +482,6 @@ async function sendMessage() {
   font-weight: 450;
 }
 
-.session-item.active .session-title {
-  font-weight: 500;
-}
-
 .rename-input {
   flex: 1;
   border: none;
@@ -442,23 +510,10 @@ async function sendMessage() {
   flex-shrink: 0;
 }
 
-.session-item:hover .btn-delete-session {
-  opacity: 1;
-}
-
-.session-item.active .btn-delete-session {
-  color: rgba(255,255,255,0.5);
-}
-
-.session-item.active .btn-delete-session:hover {
-  background: rgba(255,255,255,0.15);
-  color: #fff;
-}
-
-.btn-delete-session:hover {
-  background: #fee2e2;
-  color: #ef4444;
-}
+.session-item:hover .btn-delete-session { opacity: 1; }
+.session-item.active .btn-delete-session { color: rgba(255,255,255,0.5); }
+.session-item.active .btn-delete-session:hover { background: rgba(255,255,255,0.15); color: #fff; }
+.btn-delete-session:hover { background: #fee2e2; color: #ef4444; }
 
 .no-sessions {
   padding: 40px 16px;
@@ -472,11 +527,10 @@ async function sendMessage() {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #f7f9fb;
+  background: transparent;
   position: relative;
 }
 
-/* 欢迎页 */
 .welcome {
   display: flex;
   flex-direction: column;
@@ -527,13 +581,8 @@ async function sendMessage() {
   padding: 0 40px;
 }
 
-.row-user {
-  justify-content: flex-end;
-}
-
-.row-ai {
-  justify-content: flex-start;
-}
+.row-user { justify-content: flex-end; }
+.row-ai { justify-content: flex-start; }
 
 /* ========== 聊天气泡 ========== */
 .bubble {
@@ -566,10 +615,37 @@ async function sendMessage() {
   letter-spacing: -0.1px;
 }
 
-/* 加载动画 */
-.bubble-loading {
-  padding: 16px 24px;
+/* Markdown 内容样式 */
+.markdown-body :deep(p) { margin: 0 0 8px; }
+.markdown-body :deep(p:last-child) { margin-bottom: 0; }
+.markdown-body :deep(ul), .markdown-body :deep(ol) { padding-left: 20px; margin: 4px 0; }
+.markdown-body :deep(li) { margin-bottom: 2px; }
+.markdown-body :deep(pre) {
+  background: #1e1e1e;
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 8px 0;
+  font-size: 13px;
 }
+.markdown-body :deep(code) {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 13px;
+}
+.markdown-body :deep(p code) {
+  background: rgba(0,0,0,0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.markdown-body :deep(blockquote) {
+  border-left: 3px solid #667eea;
+  padding-left: 12px;
+  color: #6b7280;
+  margin: 8px 0;
+}
+
+/* 加载动画 */
+.bubble-loading { padding: 16px 24px; }
 
 .dot-pulse {
   display: inline-block;
@@ -581,8 +657,7 @@ async function sendMessage() {
   position: relative;
 }
 
-.dot-pulse::before,
-.dot-pulse::after {
+.dot-pulse::before, .dot-pulse::after {
   content: '';
   display: inline-block;
   width: 6px;
@@ -594,15 +669,8 @@ async function sendMessage() {
   animation: dotPulse 1.4s infinite ease-in-out both;
 }
 
-.dot-pulse::before {
-  left: -14px;
-  animation-delay: -0.32s;
-}
-
-.dot-pulse::after {
-  left: 14px;
-  animation-delay: 0.32s;
-}
+.dot-pulse::before { left: -14px; animation-delay: -0.32s; }
+.dot-pulse::after { left: 14px; animation-delay: 0.32s; }
 
 @keyframes dotPulse {
   0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
@@ -651,9 +719,7 @@ async function sendMessage() {
   max-height: 120px;
 }
 
-.chat-input::placeholder {
-  color: #c4c4c4;
-}
+.chat-input::placeholder { color: #c4c4c4; }
 
 .btn-send {
   width: 36px;
@@ -675,21 +741,11 @@ async function sendMessage() {
   box-shadow: 0 4px 18px rgba(79, 172, 254, 0.45);
 }
 
-.btn-send:disabled {
-  background: #e5e7eb;
-  color: #d1d5db;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.btn-send.loading {
-  background: linear-gradient(135deg, #a0c0f0 0%, #80d8e8 100%);
-  pointer-events: none;
-}
+.btn-send:disabled { background: #e5e7eb; color: #d1d5db; cursor: not-allowed; box-shadow: none; }
+.btn-send.loading { background: linear-gradient(135deg, #a0c0f0 0%, #80d8e8 100%); pointer-events: none; }
 
 /* ========== 对话框按钮 ========== */
-.btn-cancel,
-.btn-danger {
+.btn-cancel, .btn-danger {
   padding: 10px 22px;
   border-radius: 12px;
   font-size: 14px;
@@ -700,23 +756,10 @@ async function sendMessage() {
   border: none;
 }
 
-.btn-cancel {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-
-.btn-cancel:hover {
-  background: #e5e7eb;
-}
-
-.btn-danger {
-  background: #ef4444;
-  color: #fff;
-}
-
-.btn-danger:hover {
-  background: #dc2626;
-}
+.btn-cancel { background: #f3f4f6; color: #4b5563; }
+.btn-cancel:hover { background: #e5e7eb; }
+.btn-danger { background: #ef4444; color: #fff; }
+.btn-danger:hover { background: #dc2626; }
 
 .delete-hint {
   color: #6b7280;
@@ -726,24 +769,11 @@ async function sendMessage() {
 
 /* ========== 响应式 ========== */
 @media (max-width: 768px) {
-  .sidebar {
-    width: 72px;
-  }
-  .sidebar-title,
-  .session-title,
-  .btn-delete-session {
-    display: none;
-  }
-  .session-item {
-    justify-content: center;
-    padding: 12px;
-  }
-  .message-row {
-    padding: 0 8px;
-  }
-  .bubble {
-    max-width: 88%;
-  }
+  .sidebar { width: 72px; }
+  .sidebar-title, .session-title, .btn-delete-session { display: none; }
+  .session-item { justify-content: center; padding: 12px; }
+  .message-row { padding: 0 8px; }
+  .bubble { max-width: 88%; }
 }
 </style>
 
@@ -756,28 +786,11 @@ async function sendMessage() {
   box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04) !important;
 }
 
-.glass-dialog .el-dialog__header {
-  padding: 24px 28px 0;
-  border-bottom: none;
-  margin: 0;
-}
+.glass-dialog .el-dialog__header { padding: 24px 28px 0; border-bottom: none; margin: 0; }
+.glass-dialog .el-dialog__title { font-size: 17px; font-weight: 600; color: #1d1d1f; letter-spacing: -0.3px; }
+.glass-dialog .el-dialog__body { padding: 12px 28px 20px; }
+.glass-dialog .el-dialog__footer { padding: 0 28px 24px; }
 
-.glass-dialog .el-dialog__title {
-  font-size: 17px;
-  font-weight: 600;
-  color: #1d1d1f;
-  letter-spacing: -0.3px;
-}
-
-.glass-dialog .el-dialog__body {
-  padding: 12px 28px 20px;
-}
-
-.glass-dialog .el-dialog__footer {
-  padding: 0 28px 24px;
-}
-
-/* 毛玻璃遮罩 */
 .el-overlay {
   backdrop-filter: blur(6px) saturate(120%);
   -webkit-backdrop-filter: blur(6px) saturate(120%);
