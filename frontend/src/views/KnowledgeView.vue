@@ -213,7 +213,10 @@ onMounted(() => {
   margin: 0;
   font-size: 26px;
   font-weight: 650;
-  color: #1d1d1f;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   letter-spacing: -0.5px;
 }
 
@@ -229,7 +232,7 @@ onMounted(() => {
   align-items: center;
   gap: 7px;
   padding: 11px 22px;
-  background: #1d1d1f;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   color: #fff;
   border: none;
   border-radius: 14px;
@@ -237,14 +240,13 @@ onMounted(() => {
   font-weight: 550;
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   letter-spacing: -0.2px;
 }
 
 .btn-add:hover {
-  background: #000;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(79, 172, 254, 0.4);
 }
 
 /* ========== 卡片网格 ========== */
@@ -270,7 +272,7 @@ onMounted(() => {
 
 .knowledge-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.04);
+  box-shadow: 0 12px 32px rgba(142, 197, 252, 0.2), 0 0 0 1px rgba(142, 197, 252, 0.12);
 }
 
 .card-index {
@@ -318,9 +320,12 @@ onMounted(() => {
 }
 
 .card-time {
-  font-size: 12px;
-  color: #c4c4c4;
-  font-weight: 450;
+  font-size: 11px;
+  color: #4a7bbf;
+  font-weight: 500;
+  background: rgba(142, 197, 252, 0.18);
+  padding: 4px 10px;
+  border-radius: 6px;
 }
 
 .card-delete {
@@ -412,9 +417,9 @@ onMounted(() => {
 
 .form-input:focus,
 .form-textarea:focus {
-  border-color: #1d1d1f;
+  border-color: #4facfe;
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+  box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.08);
 }
 
 .form-input::placeholder,
@@ -449,19 +454,20 @@ onMounted(() => {
 
 .btn-save {
   padding: 10px 24px;
-  background: #1d1d1f;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   color: #fff;
   border: none;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 550;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
   font-family: inherit;
 }
 
 .btn-save:hover:not(:disabled) {
-  background: #000;
+  box-shadow: 0 4px 18px rgba(79, 172, 254, 0.45);
+  transform: translateY(-1px);
 }
 
 .btn-save:disabled {

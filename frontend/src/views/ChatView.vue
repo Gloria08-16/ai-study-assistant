@@ -357,18 +357,18 @@ async function sendMessage() {
   height: 32px;
   border: none;
   border-radius: 10px;
-  background: #1d1d1f;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .btn-new-chat:hover {
-  background: #000;
   transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);
 }
 
 .session-list {
@@ -397,7 +397,7 @@ async function sendMessage() {
 }
 
 .session-item.active {
-  background: #1d1d1f;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
 }
 
@@ -489,15 +489,20 @@ async function sendMessage() {
 
 .welcome-icon {
   font-size: 40px;
-  color: #1d1d1f;
   margin-bottom: 16px;
-  opacity: 0.6;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .welcome h2 {
   font-size: 22px;
   font-weight: 600;
-  color: #1d1d1f;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0 0 8px;
   letter-spacing: -0.4px;
 }
@@ -539,16 +544,18 @@ async function sendMessage() {
 }
 
 .bubble-user {
-  background: #1d1d1f;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
   border-bottom-right-radius: 6px;
 }
 
 .bubble-ai {
-  background: #fff;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
   color: #1d1d1f;
   border-bottom-left-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.03);
+  box-shadow: 0 1px 3px rgba(142, 197, 252, 0.12), 0 2px 12px rgba(142, 197, 252, 0.06);
+  border: 1px solid rgba(142, 197, 252, 0.15);
 }
 
 .bubble-text {
@@ -569,7 +576,7 @@ async function sendMessage() {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #9ca3af;
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
   animation: dotPulse 1.4s infinite ease-in-out both;
   position: relative;
 }
@@ -581,7 +588,7 @@ async function sendMessage() {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #9ca3af;
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
   position: absolute;
   top: 0;
   animation: dotPulse 1.4s infinite ease-in-out both;
@@ -626,8 +633,8 @@ async function sendMessage() {
 }
 
 .input-wrapper:focus-within {
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
-  border-color: rgba(0,0,0,0.08);
+  box-shadow: 0 4px 24px rgba(79, 172, 254, 0.15), 0 1px 3px rgba(79, 172, 254, 0.06);
+  border-color: rgba(79, 172, 254, 0.25);
 }
 
 .chat-input {
@@ -653,29 +660,30 @@ async function sendMessage() {
   height: 36px;
   border: none;
   border-radius: 14px;
-  background: #1d1d1f;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
   color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .btn-send:hover:not(:disabled) {
-  background: #000;
   transform: scale(1.06);
+  box-shadow: 0 4px 18px rgba(79, 172, 254, 0.45);
 }
 
 .btn-send:disabled {
   background: #e5e7eb;
   color: #d1d5db;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .btn-send.loading {
-  background: #6b7280;
+  background: linear-gradient(135deg, #a0c0f0 0%, #80d8e8 100%);
   pointer-events: none;
 }
 
