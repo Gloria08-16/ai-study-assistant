@@ -1,13 +1,12 @@
 <template>
   <div class="chat-container">
     <!-- 左侧历史会话列表 -->
-    <div class="sidebar">
+    <aside class="sidebar">
       <div class="sidebar-header">
-        <h3>历史会话</h3>
-        <el-button type="primary" size="small" @click="newConversation" class="new-chat-btn">
-          <el-icon><Plus /></el-icon>
-          新对话
-        </el-button>
+        <span class="sidebar-title">会话</span>
+        <button class="btn-new-chat" @click="newConversation" title="新建对话">
+          <el-icon :size="18"><Plus /></el-icon>
+        </button>
       </div>
       <div class="session-list">
         <div
@@ -16,13 +15,10 @@
           :class="['session-item', { active: activeSessionId === session.id }]"
           @click="selectSession(session)"
         >
-          <el-icon><ChatLineSquare /></el-icon>
-
           <!-- 改名模式 -->
-          <el-input
+          <input
             v-if="editingSessionId === session.id"
             v-model="editTitle"
-            size="small"
             class="rename-input"
             @blur="confirmRename(session)"
             @keydown.enter="confirmRename(session)"
@@ -31,83 +27,86 @@
             ref="renameInputRef"
           />
 
-          <!-- 普通显示 + 双击改名 -->
+          <!-- 普通显示 -->
           <span
             v-else
             class="session-title"
             @dblclick.stop="startRename(session)"
-            :title="'双击修改名称'"
+            title="双击修改名称"
           >{{ session.title }}</span>
 
-          <el-button
-            type="danger"
-            size="small"
-            :icon="Delete"
-            circle
-            class="delete-session-btn"
+          <button
+            class="btn-delete-session"
             @click.stop="deleteSession(session.id)"
             title="删除会话"
-          />
+          >
+            <el-icon :size="13"><Close /></el-icon>
+          </button>
         </div>
 
-        <!-- 无会话时的提示 -->
         <div v-if="sessions.length === 0" class="no-sessions">
-          暂无会话，点击上方按钮创建
+          暂无会话，点击 + 创建
         </div>
       </div>
-    </div>
+    </aside>
 
     <!-- 右侧主聊天区域 -->
-    <div class="main-chat">
-      <div class="chat-header">
-        <h2>AI 智能伴学</h2>
-      </div>
-
+    <section class="main-chat">
       <!-- 消息列表 -->
       <div class="message-area" ref="messageArea">
+        <!-- 欢迎页（无消息时） -->
+        <div v-if="currentMessages.length === 0 && !loading" class="welcome">
+          <div class="welcome-icon">✦</div>
+          <h2>开始新的对话</h2>
+          <p>在下方输入你的问题，AI 助手将竭诚为你解答</p>
+        </div>
+
         <div v-for="(msg, index) in currentMessages" :key="index"
-          :class="['message-item', msg.role === 'user' ? 'user-msg' : 'ai-msg']">
-          <div class="avatar">
-            <el-avatar v-if="msg.role === 'user'" :icon="UserFilled" />
-            <el-avatar v-else>
-              <el-icon><ChatDotRound /></el-icon>
-            </el-avatar>
-          </div>
-          <div class="bubble">
-            <div class="role-label">{{ msg.role === 'user' ? '我' : 'AI助手' }}</div>
-            <div class="content">{{ msg.content }}</div>
+          :class="['message-row', msg.role === 'user' ? 'row-user' : 'row-ai']">
+          <div :class="['bubble', msg.role === 'user' ? 'bubble-user' : 'bubble-ai']">
+            <div class="bubble-text">{{ msg.content }}</div>
           </div>
         </div>
 
         <!-- 加载中 -->
-        <div v-if="loading" class="message-item ai-msg">
-          <div class="avatar">
-            <el-avatar><el-icon><ChatDotRound /></el-icon></el-avatar>
-          </div>
-          <div class="bubble">
-            <div class="role-label">AI助手</div>
-            <div class="content">正在思考中...</div>
+        <div v-if="loading" class="message-row row-ai">
+          <div class="bubble bubble-ai bubble-loading">
+            <span class="dot-pulse"></span>
           </div>
         </div>
       </div>
 
       <!-- 底部输入区 -->
       <div class="input-area">
-        <el-input v-model="inputText" placeholder="请输入你的问题... (Enter发送，Shift+Enter换行)"
-          :rows="3" type="textarea" resize="none" @keydown="handleKeydown" />
-        <el-button type="primary" @click="sendMessage" :loading="loading" class="send-btn">
-          <el-icon><Promotion /></el-icon>
-          发送
-        </el-button>
+        <div class="input-wrapper">
+          <textarea
+            v-model="inputText"
+            class="chat-input"
+            placeholder="输入你的问题..."
+            rows="1"
+            @keydown="handleKeydown"
+            ref="inputRef"
+          ></textarea>
+          <button
+            class="btn-send"
+            :class="{ loading: loading }"
+            :disabled="!inputText.trim() || loading"
+            @click="sendMessage"
+            title="发送"
+          >
+            <el-icon :size="18"><Promotion /></el-icon>
+          </button>
+        </div>
       </div>
-    </div>
+    </section>
 
     <!-- 删除确认对话框 -->
-    <el-dialog v-model="deleteDialogVisible" title="确认删除" width="400px">
-      <p>确定要删除会话「{{ deleteTargetTitle }}」吗？该会话下的所有消息也将被删除。</p>
+    <el-dialog v-model="deleteDialogVisible" title="确认删除" width="380px"
+      custom-class="glass-dialog" :close-on-click-modal="false">
+      <p class="delete-hint">确定要删除会话「{{ deleteTargetTitle }}」吗？该会话下的所有消息也将被删除。</p>
       <template #footer>
-        <el-button @click="deleteDialogVisible = false">取消</el-button>
-        <el-button type="danger" @click="confirmDelete">确认删除</el-button>
+        <button class="btn-cancel" @click="deleteDialogVisible = false">取消</button>
+        <button class="btn-danger" @click="confirmDelete">确认删除</button>
       </template>
     </el-dialog>
   </div>
@@ -119,46 +118,37 @@ import axios from 'axios'
 
 const API_BASE = 'http://localhost:8080/api'
 
-// ---------- 会话状态 ----------
 const sessions = ref([])
 const activeSessionId = ref(null)
-
-// ---------- 消息状态 ----------
 const currentMessages = ref([])
 
 const inputText = ref('')
 const loading = ref(false)
 const messageArea = ref(null)
+const inputRef = ref(null)
 
-// ---------- 改名状态 ----------
 const editingSessionId = ref(null)
 const editTitle = ref('')
 const renameInputRef = ref(null)
 
-// ---------- 删除状态 ----------
 const deleteDialogVisible = ref(false)
 const deleteTargetId = ref(null)
 const deleteTargetTitle = ref('')
 
-// 初始 AI 问候语
 const DEFAULT_GREETING = '你好，我是你的AI智能助学助手，在学习的过程中，有什么不明白、不确定的问题都可以问我'
 
 // ==================== 生命周期 ====================
 onMounted(async () => {
   await loadSessions()
   if (sessions.value.length > 0) {
-    // 默认选中第一个会话
     activeSessionId.value = sessions.value[0].id
     await loadMessages(sessions.value[0].id)
   } else {
-    // 没有任何会话，自动创建一个
     await autoCreateSession()
   }
 })
 
 // ==================== 会话管理 ====================
-
-// 从后端加载会话列表
 async function loadSessions() {
   try {
     const res = await axios.get(`${API_BASE}/sessions`)
@@ -168,47 +158,30 @@ async function loadSessions() {
   }
 }
 
-// 自动创建第一个会话
 async function autoCreateSession() {
   try {
-    const res = await axios.post(`${API_BASE}/sessions`, {
-      userId: 1,
-      title: '新对话'
-    })
+    const res = await axios.post(`${API_BASE}/sessions`, { userId: 1, title: '新对话' })
     const session = res.data
     sessions.value = [session]
     activeSessionId.value = session.id
-
-    // 保存 AI 初始问候语
     await axios.post(`${API_BASE}/messages`, {
-      sessionId: session.id,
-      role: 'assistant',
-      content: DEFAULT_GREETING
+      sessionId: session.id, role: 'assistant', content: DEFAULT_GREETING
     })
     currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
   } catch (e) {
     console.error('自动创建会话失败:', e)
-    // 兜底：至少显示本地消息
     currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
   }
 }
 
-// 新建对话
 async function newConversation() {
   try {
-    const res = await axios.post(`${API_BASE}/sessions`, {
-      userId: 1,
-      title: '新对话'
-    })
+    const res = await axios.post(`${API_BASE}/sessions`, { userId: 1, title: '新对话' })
     const session = res.data
     sessions.value.unshift(session)
     activeSessionId.value = session.id
-
-    // 保存 AI 初始问候语
     await axios.post(`${API_BASE}/messages`, {
-      sessionId: session.id,
-      role: 'assistant',
-      content: DEFAULT_GREETING
+      sessionId: session.id, role: 'assistant', content: DEFAULT_GREETING
     })
     currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
   } catch (e) {
@@ -216,14 +189,12 @@ async function newConversation() {
   }
 }
 
-// 选择历史会话
 async function selectSession(session) {
   if (activeSessionId.value === session.id) return
   activeSessionId.value = session.id
   await loadMessages(session.id)
 }
 
-// 删除会话
 function deleteSession(id) {
   const session = sessions.value.find(s => s.id === id)
   if (!session) return
@@ -236,8 +207,6 @@ async function confirmDelete() {
   try {
     await axios.delete(`${API_BASE}/sessions/${deleteTargetId.value}`)
     sessions.value = sessions.value.filter(s => s.id !== deleteTargetId.value)
-
-    // 如果删除的是当前活跃会话
     if (activeSessionId.value === deleteTargetId.value) {
       if (sessions.value.length > 0) {
         activeSessionId.value = sessions.value[0].id
@@ -245,7 +214,6 @@ async function confirmDelete() {
       } else {
         activeSessionId.value = null
         currentMessages.value = []
-        // 如果没有会话了，自动创建一个
         await autoCreateSession()
       }
     }
@@ -261,9 +229,8 @@ function startRename(session) {
   editingSessionId.value = session.id
   editTitle.value = session.title
   nextTick(() => {
-    // 聚焦到输入框
-    const input = document.querySelector('.rename-input input')
-    if (input) input.focus()
+    const el = document.querySelector('.rename-input')
+    if (el) { el.focus(); el.select() }
   })
 }
 
@@ -285,25 +252,16 @@ function cancelRename() {
 }
 
 // ==================== 消息 ====================
-
-// 加载某个会话的历史消息
 async function loadMessages(sessionId) {
   currentMessages.value = []
   try {
     const res = await axios.get(`${API_BASE}/messages/${sessionId}`)
     if (res.data && res.data.length > 0) {
-      currentMessages.value = res.data.map(m => ({
-        role: m.role,
-        content: m.content
-      }))
+      currentMessages.value = res.data.map(m => ({ role: m.role, content: m.content }))
     } else {
-      // 无历史消息，显示问候语
       currentMessages.value = [{ role: 'assistant', content: DEFAULT_GREETING }]
-      // 将该问候语也保存到数据库
       await axios.post(`${API_BASE}/messages`, {
-        sessionId: sessionId,
-        role: 'assistant',
-        content: DEFAULT_GREETING
+        sessionId: sessionId, role: 'assistant', content: DEFAULT_GREETING
       })
     }
   } catch (e) {
@@ -313,7 +271,6 @@ async function loadMessages(sessionId) {
   scrollToBottom()
 }
 
-// 键盘事件：Enter 发送，Shift+Enter 换行
 function handleKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -321,7 +278,6 @@ function handleKeydown(e) {
   }
 }
 
-// 滚动到底部
 function scrollToBottom() {
   nextTick(() => {
     if (messageArea.value) {
@@ -330,49 +286,31 @@ function scrollToBottom() {
   })
 }
 
-// 发送消息
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text || loading.value) return
-  if (!activeSessionId.value) {
-    // 无活跃会话时自动创建一个
-    await autoCreateSession()
-  }
+  if (!activeSessionId.value) await autoCreateSession()
 
-  // 添加用户消息到界面
   currentMessages.value.push({ role: 'user', content: text })
   inputText.value = ''
   scrollToBottom()
 
-  // 保存用户消息到后端
   const sid = activeSessionId.value
-  axios.post(`${API_BASE}/messages`, {
-    sessionId: sid,
-    role: 'user',
-    content: text
-  }).catch(e => console.error('保存用户消息失败:', e))
+  axios.post(`${API_BASE}/messages`, { sessionId: sid, role: 'user', content: text })
+    .catch(e => console.error('保存用户消息失败:', e))
 
-  // 调用 AI
   loading.value = true
   try {
     const res = await axios.post(`${API_BASE}/chat`, { message: text })
     const reply = res.data.reply
     currentMessages.value.push({ role: 'assistant', content: reply })
-
-    // 保存 AI 回复到后端
-    axios.post(`${API_BASE}/messages`, {
-      sessionId: sid,
-      role: 'assistant',
-      content: reply
-    }).catch(e => console.error('保存AI回复失败:', e))
+    axios.post(`${API_BASE}/messages`, { sessionId: sid, role: 'assistant', content: reply })
+      .catch(e => console.error('保存AI回复失败:', e))
   } catch (e) {
     const fallback = '请求失败，请检查后端服务是否已启动。'
     currentMessages.value.push({ role: 'assistant', content: fallback })
-    axios.post(`${API_BASE}/messages`, {
-      sessionId: sid,
-      role: 'assistant',
-      content: fallback
-    }).catch(() => {})
+    axios.post(`${API_BASE}/messages`, { sessionId: sid, role: 'assistant', content: fallback })
+      .catch(() => {})
   } finally {
     loading.value = false
     scrollToBottom()
@@ -381,67 +319,86 @@ async function sendMessage() {
 </script>
 
 <style scoped>
+/* ========== 容器 ========== */
 .chat-container {
   display: flex;
-  height: calc(100vh - 60px);
+  height: 100%;
+  background: #f7f9fb;
 }
 
-/* 左侧栏 */
+/* ========== 侧边栏 ========== */
 .sidebar {
   width: 260px;
-  background: #f5f7fa;
-  border-right: 1px solid #e4e7ed;
+  background: #fff;
   display: flex;
   flex-direction: column;
+  border-right: none;
+  box-shadow: 2px 0 24px rgba(0,0,0,0.03);
+  z-index: 10;
 }
 
 .sidebar-header {
-  padding: 16px;
-  border-bottom: 1px solid #e4e7ed;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 12px;
 }
 
-.sidebar-header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #303133;
+.sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
 }
 
-.new-chat-btn {
-  flex-shrink: 0;
+.btn-new-chat {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 10px;
+  background: #1d1d1f;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.btn-new-chat:hover {
+  background: #000;
+  transform: scale(1.05);
 }
 
 .session-list {
   flex: 1;
   overflow-y: auto;
+  padding: 4px 12px 12px;
 }
 
 .session-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 2px;
+  border-radius: 12px;
   cursor: pointer;
-  color: #606266;
+  color: #4b5563;
   font-size: 14px;
-  border-bottom: 1px solid #ebeef5;
-  transition: background 0.2s;
+  transition: all 0.15s ease;
+  border: none;
+  position: relative;
 }
 
 .session-item:hover {
-  background: #ecf5ff;
+  background: #f3f4f6;
 }
 
 .session-item.active {
-  background: #d9ecff;
-  color: #409eff;
-  font-weight: 500;
-}
-
-.session-item .el-icon {
-  flex-shrink: 0;
+  background: #1d1d1f;
+  color: #fff;
 }
 
 .session-title {
@@ -450,112 +407,372 @@ async function sendMessage() {
   text-overflow: ellipsis;
   white-space: nowrap;
   user-select: none;
+  font-weight: 450;
+}
+
+.session-item.active .session-title {
+  font-weight: 500;
 }
 
 .rename-input {
   flex: 1;
+  border: none;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  font-family: inherit;
 }
 
-.delete-session-btn {
-  flex-shrink: 0;
+.btn-delete-session {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #d1d5db;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
 }
 
-.session-item:hover .delete-session-btn {
+.session-item:hover .btn-delete-session {
   opacity: 1;
+}
+
+.session-item.active .btn-delete-session {
+  color: rgba(255,255,255,0.5);
+}
+
+.session-item.active .btn-delete-session:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+.btn-delete-session:hover {
+  background: #fee2e2;
+  color: #ef4444;
 }
 
 .no-sessions {
   padding: 40px 16px;
   text-align: center;
-  color: #909399;
+  color: #d1d5db;
   font-size: 13px;
 }
 
-/* 右侧聊天区 */
+/* ========== 主聊天区 ========== */
 .main-chat {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: #f7f9fb;
+  position: relative;
 }
 
-.chat-header {
-  padding: 12px 20px;
-  border-bottom: 1px solid #e4e7ed;
-  background: #fff;
+/* 欢迎页 */
+.welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 40px;
 }
 
-.chat-header h2 {
+.welcome-icon {
+  font-size: 40px;
+  color: #1d1d1f;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.welcome h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1d1d1f;
+  margin: 0 0 8px;
+  letter-spacing: -0.4px;
+}
+
+.welcome p {
+  font-size: 14px;
+  color: #9ca3af;
   margin: 0;
-  font-size: 18px;
-  color: #303133;
 }
 
-/* 消息区域 */
+/* ========== 消息区域 ========== */
 .message-area {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
-  background: #fafafa;
+  padding: 24px 20px;
+  scroll-behavior: smooth;
 }
 
-.message-item {
+.message-row {
   display: flex;
-  margin-bottom: 20px;
-  gap: 12px;
+  margin-bottom: 16px;
+  padding: 0 40px;
 }
 
-.user-msg {
-  flex-direction: row-reverse;
+.row-user {
+  justify-content: flex-end;
 }
 
-.avatar {
-  flex-shrink: 0;
+.row-ai {
+  justify-content: flex-start;
 }
 
+/* ========== 聊天气泡 ========== */
 .bubble {
-  max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  max-width: 68%;
+  padding: 14px 18px;
+  border-radius: 18px;
+  border: none;
 }
 
-.user-msg .bubble {
-  background: #409eff;
+.bubble-user {
+  background: #1d1d1f;
+  color: #fff;
+  border-bottom-right-radius: 6px;
+}
+
+.bubble-ai {
+  background: #fff;
+  color: #1d1d1f;
+  border-bottom-left-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.03);
+}
+
+.bubble-text {
+  font-size: 14.5px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  letter-spacing: -0.1px;
+}
+
+/* 加载动画 */
+.bubble-loading {
+  padding: 16px 24px;
+}
+
+.dot-pulse {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9ca3af;
+  animation: dotPulse 1.4s infinite ease-in-out both;
+  position: relative;
+}
+
+.dot-pulse::before,
+.dot-pulse::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #9ca3af;
+  position: absolute;
+  top: 0;
+  animation: dotPulse 1.4s infinite ease-in-out both;
+}
+
+.dot-pulse::before {
+  left: -14px;
+  animation-delay: -0.32s;
+}
+
+.dot-pulse::after {
+  left: 14px;
+  animation-delay: 0.32s;
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.2; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* ========== 底部输入区 ========== */
+.input-area {
+  padding: 16px 24px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: 720px;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 20px;
+  padding: 8px 8px 8px 18px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.04);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.input-wrapper:focus-within {
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
+  border-color: rgba(0,0,0,0.08);
+}
+
+.chat-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #1d1d1f;
+  resize: none;
+  font-family: inherit;
+  padding: 4px 0;
+  max-height: 120px;
+}
+
+.chat-input::placeholder {
+  color: #c4c4c4;
+}
+
+.btn-send {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 14px;
+  background: #1d1d1f;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.btn-send:hover:not(:disabled) {
+  background: #000;
+  transform: scale(1.06);
+}
+
+.btn-send:disabled {
+  background: #e5e7eb;
+  color: #d1d5db;
+  cursor: not-allowed;
+}
+
+.btn-send.loading {
+  background: #6b7280;
+  pointer-events: none;
+}
+
+/* ========== 对话框按钮 ========== */
+.btn-cancel,
+.btn-danger {
+  padding: 10px 22px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  border: none;
+}
+
+.btn-cancel {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.btn-cancel:hover {
+  background: #e5e7eb;
+}
+
+.btn-danger {
+  background: #ef4444;
   color: #fff;
 }
 
-.role-label {
-  font-size: 12px;
-  margin-bottom: 4px;
-  opacity: 0.7;
+.btn-danger:hover {
+  background: #dc2626;
 }
 
-.content {
+.delete-hint {
+  color: #6b7280;
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 
-/* 底部输入区 */
-.input-area {
-  display: flex;
-  gap: 12px;
-  padding: 16px 20px;
-  border-top: 1px solid #e4e7ed;
-  background: #fff;
-  align-items: flex-end;
+/* ========== 响应式 ========== */
+@media (max-width: 768px) {
+  .sidebar {
+    width: 72px;
+  }
+  .sidebar-title,
+  .session-title,
+  .btn-delete-session {
+    display: none;
+  }
+  .session-item {
+    justify-content: center;
+    padding: 12px;
+  }
+  .message-row {
+    padding: 0 8px;
+  }
+  .bubble {
+    max-width: 88%;
+  }
+}
+</style>
+
+<!-- 全局样式：毛玻璃弹窗 -->
+<style>
+.glass-dialog {
+  border-radius: 20px !important;
+  overflow: hidden;
+  border: none !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04) !important;
 }
 
-.input-area .el-textarea {
-  flex: 1;
+.glass-dialog .el-dialog__header {
+  padding: 24px 28px 0;
+  border-bottom: none;
+  margin: 0;
 }
 
-.send-btn {
-  height: 40px;
+.glass-dialog .el-dialog__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.glass-dialog .el-dialog__body {
+  padding: 12px 28px 20px;
+}
+
+.glass-dialog .el-dialog__footer {
+  padding: 0 28px 24px;
+}
+
+/* 毛玻璃遮罩 */
+.el-overlay {
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  background-color: rgba(0, 0, 0, 0.2) !important;
 }
 </style>
