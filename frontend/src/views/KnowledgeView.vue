@@ -10,7 +10,7 @@
 
     <!-- 资料列表 -->
     <el-table :data="pagedData" stripe style="width: 100%" v-loading="loadingTable">
-      <el-table-column prop="id" label="ID" width="80" />
+      <el-table-column type="index" label="序号" width="70" :index="rowIndex" />
       <el-table-column prop="title" label="标题" min-width="150" />
       <el-table-column label="内容" min-width="300">
         <template #default="{ row }">
@@ -122,6 +122,11 @@ async function deleteKnowledge(id) {
   } catch (e) {
     ElMessage.error('删除失败，请检查后端服务')
   }
+}
+
+// 表格序号（跨页连续编号）
+function rowIndex(index) {
+  return (currentPage.value - 1) * pageSize.value + index + 1
 }
 
 // 查看完整内容
