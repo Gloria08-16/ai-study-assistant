@@ -13,7 +13,9 @@
 │       ├── config/CorsConfig.java
 │       ├── controller/
 │       │   ├── AiChatController.java
-│       │   └── KnowledgeController.java
+│       │   ├── KnowledgeController.java
+│       │   ├── SessionController.java
+│       │   └── MessageController.java
 │       ├── entity/
 │       │   ├── ChatSession.java
 │       │   ├── ChatMessage.java
@@ -58,32 +60,51 @@ source /path/to/schema.sql;
 
 **前提**：已安装 JDK 17+ 和 Maven 3.8+。
 
+### 1. 配置数据库连接
+
+编辑 `backend/src/main/resources/application.yml`，将数据库密码改为你自己的 MySQL root 密码：
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/ai_study_db?...
+    username: root
+    password: 你的密码   # ← 改这里
+```
+
+### 2. 配置 DeepSeek API Key（必须）
+
+在同一个文件中，填入你的 DeepSeek API Key：
+
+```yaml
+ai:
+  api-key: 你的API-Key    # ← 改这里
+  api-url: https://api.deepseek.com/chat/completions
+```
+
+> API Key 可在 [platform.deepseek.com](https://platform.deepseek.com) 申请，新用户有免费额度。
+
+### 3. 启动后端
+
 ```bash
-# 1. 进入后端目录
 cd backend
-
-# 2. Maven 编译打包
-mvn clean package -DskipTests
-
-# 3. 启动 Spring Boot 应用
 mvn spring-boot:run
 ```
 
 启动后，后端服务运行在 **http://localhost:8080**，提供的接口：
 
-| 接口                    | 方法   | 说明         |
-|------------------------|--------|--------------|
-| `/api/chat`            | POST   | AI 对话      |
-| `/api/knowledge/add`   | POST   | 新增知识资料 |
-| `/api/knowledge/list`  | GET    | 查询知识列表 |
-
-> 当前 AI 对话接口返回模拟数据，联调成功后可替换 `AiChatService.chat()` 方法接入真实大模型 API。
-
-数据库连接配置在 `src/main/resources/application.yml` 中，默认：
-- 地址：`localhost:3306`
-- 数据库：`ai_study_db`
-- 用户名：`root`
-- 密码：`123456`
+| 接口                         | 方法   | 说明             |
+|-----------------------------|--------|------------------|
+| `/api/chat`                 | POST   | AI 对话          |
+| `/api/sessions`             | GET    | 查询会话列表     |
+| `/api/sessions`             | POST   | 创建新会话       |
+| `/api/sessions/{id}`        | PUT    | 重命名会话       |
+| `/api/sessions/{id}`        | DELETE | 删除会话（联级删除消息） |
+| `/api/messages/{sessionId}` | GET    | 查询会话历史消息 |
+| `/api/messages`             | POST   | 保存一条消息     |
+| `/api/knowledge/list`       | GET    | 查询知识列表     |
+| `/api/knowledge/add`        | POST   | 新增知识资料     |
+| `/api/knowledge/delete/{id}`| DELETE | 删除知识资料     |
 
 ## 三、前端启动步骤
 
@@ -104,8 +125,10 @@ npm run dev
 
 ### 页面说明
 
-- **AI伴学** (`/chat`)：左侧历史会话列表 + 右侧聊天区域，支持发送问题和接收回复。
-- **知识库** (`/knowledge`)：表格展示资料列表，支持新增资料。
+- **AI伴学** (`/chat`)：左侧历史会话列表 + 右侧聊天区域。双击会话标题可重命名，悬停可删除。Enter 发送消息，Shift+Enter 换行。
+- **知识库** (`/knowledge`)：表格展示资料列表，支持新增、删除，分页浏览。
+
+> 前端通过 `http://localhost:8080` 访问后端 API。如果后端地址不同，请修改 `ChatView.vue` 和 `KnowledgeView.vue` 中的 `API_BASE` 常量。
 
 ## 四、技术栈
 
