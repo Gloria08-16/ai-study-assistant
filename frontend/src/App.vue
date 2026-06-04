@@ -5,6 +5,9 @@
       <div class="mesh-orb mesh-orb--1"></div>
       <div class="mesh-orb mesh-orb--2"></div>
       <div class="mesh-orb mesh-orb--3"></div>
+      <div class="mesh-orb mesh-orb--4"></div>
+      <div class="mesh-orb mesh-orb--5"></div>
+      <div class="mesh-pattern"></div>
       <div class="mesh-veil"></div>
     </div>
     <!-- 顶部导航栏 -->
@@ -110,10 +113,40 @@ body {
   animation: orbFloat3 16s ease-in-out infinite;
 }
 
+/* 新增：暖色光斑 */
+.mesh-orb--4 {
+  width: 300px;
+  height: 300px;
+  top: 20%;
+  left: 10%;
+  background: #fbc2eb;
+  opacity: 0.35;
+  animation: orbFloat4 15s ease-in-out infinite;
+}
+
+.mesh-orb--5 {
+  width: 380px;
+  height: 380px;
+  bottom: 15%;
+  right: 5%;
+  background: #a8edea;
+  opacity: 0.3;
+  animation: orbFloat5 18s ease-in-out infinite;
+}
+
+/* CSS 点阵纹理 —— 模拟纸质笔记本的微妙网格感 */
+.mesh-pattern {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(100, 120, 160, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  opacity: 0.6;
+}
+
 .mesh-veil {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.48);
   backdrop-filter: blur(1px);
 }
 
@@ -132,6 +165,17 @@ body {
 @keyframes orbFloat3 {
   0%, 100% { transform: translate(-50%, -50%) scale(1); }
   50% { transform: translate(-50%, -50%) scale(1.12); }
+}
+
+@keyframes orbFloat4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(50px, -30px) scale(1.1); }
+  66% { transform: translate(-30px, 20px) scale(0.9); }
+}
+
+@keyframes orbFloat5 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-40px, -25px) scale(1.08); }
 }
 
 /* ========== 路由过渡动画 ========== */

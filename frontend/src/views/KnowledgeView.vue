@@ -290,7 +290,7 @@ onMounted(() => {
   margin: 0;
   font-size: 26px;
   font-weight: 650;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 25%, #d4b5f0 55%, #8ec5fc 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -300,7 +300,7 @@ onMounted(() => {
 .header-subtitle {
   margin: 4px 0 0;
   font-size: 13px;
-  color: #9ca3af;
+  color: #a0a0b0;
   font-weight: 450;
 }
 
@@ -348,14 +348,16 @@ onMounted(() => {
 }
 
 .tag-filter:hover {
-  border-color: #667eea;
+  border-color: #a8edea;
   color: #667eea;
+  background: linear-gradient(135deg, rgba(168,237,234,0.12) 0%, rgba(254,214,227,0.1) 100%);
 }
 
 .tag-filter.active {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 40%, #d4b5f0 70%, #8ec5fc 100%);
+  color: #4a5568;
   border-color: transparent;
+  box-shadow: 0 2px 10px rgba(168, 237, 234, 0.3);
 }
 
 /* ========== 卡片网格 ========== */
@@ -377,11 +379,56 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   min-height: 180px;
+  overflow: hidden;
+}
+
+/* 卡片顶部彩色装饰条 */
+.knowledge-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg,
+    #a8edea 0%,
+    #fed6e3 20%,
+    #d4b5f0 40%,
+    #8ec5fc 60%,
+    #667eea 80%,
+    #764ba2 100%
+  );
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.knowledge-card:hover::before {
+  opacity: 1;
 }
 
 .knowledge-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(142, 197, 252, 0.2), 0 0 0 1px rgba(142, 197, 252, 0.12);
+  box-shadow: 0 12px 32px rgba(142, 197, 252, 0.22),
+    0 0 0 1px rgba(142, 197, 252, 0.1);
+}
+
+/* 卡片角标装饰 */
+.knowledge-card::after {
+  content: '';
+  position: absolute;
+  bottom: -30px;
+  right: -30px;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(142, 197, 252, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.knowledge-card:hover::after {
+  background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+  transform: scale(1.3);
 }
 
 .card-index {
@@ -442,22 +489,26 @@ onMounted(() => {
   font-size: 11px;
   font-weight: 550;
   border-radius: 6px;
-  background: rgba(142, 197, 252, 0.18);
-  color: #4a7bbf;
+  background: linear-gradient(135deg, rgba(168,237,234,0.2) 0%, rgba(142,197,252,0.18) 100%);
+  color: #5b7fba;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  border: 1px solid rgba(168, 237, 234, 0.2);
 }
 
 .card-tag:hover {
-  background: rgba(142, 197, 252, 0.35);
+  background: linear-gradient(135deg, rgba(168,237,234,0.38) 0%, rgba(254,214,227,0.30) 100%);
+  border-color: rgba(212, 181, 240, 0.4);
+  color: #4a6a9a;
+  transform: translateY(-1px);
 }
 
 .card-time {
   font-size: 11px;
-  color: #4a7bbf;
+  color: #8e8ea0;
   font-weight: 500;
-  background: rgba(142, 197, 252, 0.18);
+  background: rgba(200, 200, 220, 0.15);
   padding: 4px 10px;
   border-radius: 6px;
   white-space: nowrap;
@@ -495,9 +546,15 @@ onMounted(() => {
 }
 
 .empty-icon {
-  font-size: 48px;
+  font-size: 56px;
   margin-bottom: 16px;
-  opacity: 0.5;
+  opacity: 0.7;
+  animation: emptyFloat 3s ease-in-out infinite;
+}
+
+@keyframes emptyFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 .empty-state h3 {

@@ -417,12 +417,28 @@ async function sendMessage() {
 /* ========== 侧边栏 ========== */
 .sidebar {
   width: 260px;
-  background: #fff;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.95) 0%,
+    rgba(248,249,255,0.95) 40%,
+    rgba(245,247,252,0.95) 100%);
   display: flex;
   flex-direction: column;
-  border-right: none;
-  box-shadow: 2px 0 24px rgba(0,0,0,0.03);
+  border-right: 1px solid rgba(142, 197, 252, 0.12);
+  box-shadow: 2px 0 24px rgba(102, 126, 234, 0.06);
   z-index: 10;
+  position: relative;
+}
+
+/* 侧边栏顶部装饰线 */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #667eea, #764ba2, #f093fb, #4facfe);
+  opacity: 0.7;
 }
 
 .sidebar-header {
@@ -481,12 +497,13 @@ async function sendMessage() {
 }
 
 .session-item:hover {
-  background: #f3f4f6;
+  background: linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.06) 100%);
 }
 
 .session-item.active {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3);
 }
 
 .session-title {
@@ -547,6 +564,20 @@ async function sendMessage() {
   position: relative;
 }
 
+/* 主聊天区右上角装饰光斑 */
+.main-chat::after {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -40px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(240, 147, 251, 0.12) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
 .welcome {
   display: flex;
   flex-direction: column;
@@ -558,12 +589,18 @@ async function sendMessage() {
 }
 
 .welcome-icon {
-  font-size: 40px;
-  margin-bottom: 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-size: 56px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 30%, #d4b5f0 60%, #8ec5fc 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: welcomePulse 3s ease-in-out infinite;
+}
+
+@keyframes welcomePulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.2); }
 }
 
 .welcome h2 {
@@ -581,6 +618,8 @@ async function sendMessage() {
   font-size: 14px;
   color: #9ca3af;
   margin: 0;
+  max-width: 320px;
+  line-height: 1.6;
 }
 
 /* ========== 消息区域 ========== */
@@ -589,6 +628,10 @@ async function sendMessage() {
   overflow-y: auto;
   padding: 24px 20px;
   scroll-behavior: smooth;
+  /* 微妙点阵纹理 */
+  background-image:
+    radial-gradient(circle, rgba(142, 197, 252, 0.06) 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
 .message-row {
@@ -612,15 +655,16 @@ async function sendMessage() {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
   border-bottom-right-radius: 6px;
+  box-shadow: 0 4px 16px rgba(102, 126, 234, 0.25);
 }
 
 .bubble-ai {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
   color: #1d1d1f;
   border-bottom-left-radius: 6px;
-  box-shadow: 0 1px 3px rgba(142, 197, 252, 0.12), 0 2px 12px rgba(142, 197, 252, 0.06);
-  border: 1px solid rgba(142, 197, 252, 0.15);
+  box-shadow: 0 1px 4px rgba(142, 197, 252, 0.10), 0 3px 14px rgba(142, 197, 252, 0.06);
+  border: 1px solid rgba(142, 197, 252, 0.12);
 }
 
 .bubble-text {
