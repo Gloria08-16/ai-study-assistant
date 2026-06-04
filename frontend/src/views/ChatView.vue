@@ -54,7 +54,7 @@
           :class="['message-row', msg.role === 'user' ? 'row-user' : 'row-ai']">
           <div :class="['bubble', msg.role === 'user' ? 'bubble-user' : 'bubble-ai']">
             <div v-if="msg.role === 'user'" class="bubble-text">{{ msg.content }}</div>
-            <div v-else class="bubble-text markdown-body" v-html="renderMarkdown(msg.content)"></div>
+            <div v-else class="bubble-text ai-reply-content" v-html="renderMarkdown(msg.content)"></div>
           </div>
         </div>
 
@@ -67,6 +67,12 @@
 
       <!-- 底部输入区 -->
       <div class="input-area">
+        <div class="rag-toggle-row">
+          <label class="rag-toggle-label">
+            <el-switch v-model="useKnowledge" size="small" />
+            <span class="rag-toggle-text">开启私人知识库增强</span>
+          </label>
+        </div>
         <div class="input-wrapper">
           <textarea
             v-model="inputText"
@@ -112,7 +118,7 @@ const store = useChatStore()
 
 // ---------- Markdown 渲染器 ----------
 const md = new MarkdownIt({
-  html: false,
+  html: true,
   linkify: true,
   breaks: true,
   highlight(str, lang) {
@@ -135,6 +141,7 @@ function renderMarkdown(text) {
 // ---------- 本地状态 ----------
 const inputText = ref('')
 const loading = ref(false)
+const useKnowledge = ref(false)
 const messageArea = ref(null)
 
 const editingSessionId = ref(null)
@@ -321,7 +328,7 @@ async function sendMessage() {
     const response = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text })
+      body: JSON.stringify({ message: text, useKnowledge: useKnowledge.value })
     })
 
     if (!response.ok) {
@@ -332,6 +339,8 @@ async function sendMessage() {
     const decoder = new TextDecoder()
     let buffer = ''
     let fullReply = ''
+    let eventType = 'chunk'       // 当前事件类型
+    let dataLines = []            // 多行 data 缓冲区（SSE 标准：多行 data 用 \n 拼接）
 
     while (true) {
       const { done, value } = await reader.read()
@@ -342,28 +351,35 @@ async function sendMessage() {
       buffer = lines.pop() || ''
 
       for (const line of lines) {
-        if (!line.startsWith('event:') && !line.startsWith('data:')) continue
+        // SSE 事件边界：空行表示当前事件结束
+        if (line.length === 0) {
+          if (dataLines.length > 0) {
+            // 将多行 data 用 \n 拼接还原（关键：\n 被 SSE 协议拆成了多行）
+            const eventData = dataLines.join('\n')
+            dataLines = []
 
-        // SSE 事件名
-        let eventType = 'chunk'
-        let eventData = ''
+            if (eventType === 'chunk' && eventData) {
+              fullReply += eventData
+              store.appendToLastAssistant(sid, eventData)
+              scrollToBottom()
+            } else if (eventType === 'done') {
+              fullReply = eventData || fullReply
+            } else if (eventType === 'error') {
+              store.appendToLastAssistant(sid, eventData || '请求失败，请稍后重试')
+            }
+            eventType = 'chunk'
+          }
+          continue
+        }
 
         if (line.startsWith('event:')) {
           eventType = line.substring(6).trim()
-          continue  // 需要下一行才是 data
+          dataLines = []
+          continue
         }
         if (line.startsWith('data:')) {
-          eventData = line.substring(5).trim()
-        }
-
-        if (eventType === 'chunk' && eventData) {
-          fullReply += eventData
-          store.appendToLastAssistant(sid, eventData)
-          scrollToBottom()
-        } else if (eventType === 'done') {
-          fullReply = eventData || fullReply
-        } else if (eventType === 'error') {
-          store.appendToLastAssistant(sid, eventData || '请求失败，请稍后重试')
+          dataLines.push(line.substring(5))
+          continue
         }
       }
     }
@@ -615,29 +631,20 @@ async function sendMessage() {
   letter-spacing: -0.1px;
 }
 
-/* Markdown 内容样式 */
-.markdown-body :deep(p) { margin: 0 0 8px; }
-.markdown-body :deep(p:last-child) { margin-bottom: 0; }
-.markdown-body :deep(ul), .markdown-body :deep(ol) { padding-left: 20px; margin: 4px 0; }
-.markdown-body :deep(li) { margin-bottom: 2px; }
-.markdown-body :deep(pre) {
-  background: #1e1e1e;
-  border-radius: 10px;
-  padding: 14px 16px;
-  overflow-x: auto;
-  margin: 8px 0;
-  font-size: 13px;
+/* Markdown 内容样式 —— 保留块级元素布局 */
+.ai-reply-content :deep(ul), .ai-reply-content :deep(ol) { padding-left: 20px; margin: 4px 0; }
+.ai-reply-content :deep(li) { margin-bottom: 2px; }
+.ai-reply-content :deep(p) {
+  white-space: pre-wrap !important;
+  margin-bottom: 8px;
 }
-.markdown-body :deep(code) {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  font-size: 13px;
-}
-.markdown-body :deep(p code) {
+.ai-reply-content :deep(p:last-child) { margin-bottom: 0; }
+.ai-reply-content :deep(p code) {
   background: rgba(0,0,0,0.06);
   padding: 2px 6px;
   border-radius: 4px;
 }
-.markdown-body :deep(blockquote) {
+.ai-reply-content :deep(blockquote) {
   border-left: 3px solid #667eea;
   padding-left: 12px;
   color: #6b7280;
@@ -681,7 +688,54 @@ async function sendMessage() {
 .input-area {
   padding: 16px 24px 20px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* RAG 知识库增强开关 */
+.rag-toggle-row {
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 8px;
+  padding: 0 4px;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.rag-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.rag-toggle-text {
+  font-size: 12.5px;
+  font-weight: 480;
+  color: #8e8e93;
+  letter-spacing: -0.1px;
+  transition: color 0.2s ease;
+}
+
+.rag-toggle-label:has(.el-switch.is-checked) .rag-toggle-text,
+.rag-toggle-label:has(.is-checked) .rag-toggle-text {
+  color: #667eea;
+}
+
+/* 穿透 el-switch 样式微调 */
+.rag-toggle-row :deep(.el-switch) {
+  --el-switch-on-color: #667eea;
+  --el-switch-off-color: #d1d5db;
+}
+
+.rag-toggle-row :deep(.el-switch.is-checked .el-switch__core) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-color: transparent;
+}
+
+.rag-toggle-row :deep(.el-switch__core) {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1.2);
 }
 
 .input-wrapper {
@@ -777,8 +831,42 @@ async function sendMessage() {
 }
 </style>
 
-<!-- 全局样式：毛玻璃弹窗 -->
+<!-- 全局样式：毛玻璃弹窗 & 代码块换行（非 scoped 穿透 v-html）-->
 <style>
+/* ===== Markdown 代码块强制换行 ===== */
+.ai-reply-content pre {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  overflow-x: auto !important;
+  background-color: #2d2d2d !important;
+  color: #ccc !important;
+  padding: 12px 16px !important;
+  border-radius: 8px !important;
+  margin: 10px 0 !important;
+  font-family: Consolas, Monaco, "Courier New", monospace !important;
+  line-height: 1.5 !important;
+}
+.ai-reply-content pre code {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  font-family: Consolas, Monaco, "Courier New", monospace !important;
+  display: block !important;
+}
+.ai-reply-content pre code.hljs {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  display: block !important;
+}
+.ai-reply-content code {
+  font-family: Consolas, Monaco, "Courier New", monospace !important;
+}
+.ai-reply-content p {
+  white-space: pre-wrap !important;
+}
+
+/* ===== 毛玻璃弹窗 ===== */
 .glass-dialog {
   border-radius: 20px !important;
   overflow: hidden;
