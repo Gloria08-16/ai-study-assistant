@@ -23,6 +23,7 @@ Thumbs.db
 *.log
 .env
 .env.local
+**/application.yml
 
 # === Claude Code 本地文件（不共享）===
 .claude/
