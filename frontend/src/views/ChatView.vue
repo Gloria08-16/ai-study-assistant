@@ -324,11 +324,19 @@ async function sendMessage() {
   loading.value = true
   scrollToBottom()
 
+  // 构建对话历史上下文：取当前会话中最后20条消息（10轮对话）传给后端
+  const allMsgs = store.currentMessages
+  const recentHistory = allMsgs.slice(-20).map(m => ({ role: m.role, content: m.content }))
+
   try {
     const response = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, useKnowledge: useKnowledge.value })
+      body: JSON.stringify({
+        message: text,
+        useKnowledge: useKnowledge.value,
+        messages: recentHistory   // 对话历史上下文
+      })
     })
 
     if (!response.ok) {

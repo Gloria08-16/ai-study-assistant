@@ -59,8 +59,9 @@ public class AiChatService {
 
     /**
      * AI 对话 —— 调用 DeepSeek 大模型 API（非流式）
+     * @param history 对话历史，每条包含 role 和 content，用于上下文理解
      */
-    public String chat(String message, boolean useKnowledge) {
+    public String chat(String message, boolean useKnowledge, List<Map<String, String>> history) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -68,7 +69,7 @@ public class AiChatService {
 
             List<Map<String, String>> messages = new ArrayList<>();
 
-            // RAG 上下文注入
+            // RAG 上下文注入（作为 system 消息放在最前面）
             if (useKnowledge) {
                 String ragContext = buildRagContext(message);
                 if (ragContext != null) {
@@ -76,6 +77,17 @@ public class AiChatService {
                     sysMsg.put("role", "system");
                     sysMsg.put("content", ragContext);
                     messages.add(sysMsg);
+                }
+            }
+
+            // 注入对话历史上下文（限制最近20条，即10轮对话，防止 token 溢出）
+            if (history != null && !history.isEmpty()) {
+                int startIndex = Math.max(0, history.size() - 20);
+                for (int i = startIndex; i < history.size(); i++) {
+                    Map<String, String> h = history.get(i);
+                    if (h.containsKey("role") && h.containsKey("content")) {
+                        messages.add(h);
+                    }
                 }
             }
 
@@ -107,13 +119,15 @@ public class AiChatService {
 
     /**
      * AI 流式对话 —— SSE 推送，打字机效果
+     * @param history 对话历史，每条包含 role 和 content，用于上下文理解
      */
-    public void chatStream(String message, boolean useKnowledge, SseEmitter emitter) {
+    public void chatStream(String message, boolean useKnowledge, SseEmitter emitter,
+                           List<Map<String, String>> history) {
         try {
             // 构建请求体（stream=true）
             List<Map<String, String>> messages = new ArrayList<>();
 
-            // RAG 上下文注入
+            // RAG 上下文注入（作为 system 消息放在最前面）
             if (useKnowledge) {
                 String ragContext = buildRagContext(message);
                 if (ragContext != null) {
@@ -121,6 +135,17 @@ public class AiChatService {
                     sysMsg.put("role", "system");
                     sysMsg.put("content", ragContext);
                     messages.add(sysMsg);
+                }
+            }
+
+            // 注入对话历史上下文（限制最近20条，即10轮对话，防止 token 溢出）
+            if (history != null && !history.isEmpty()) {
+                int startIndex = Math.max(0, history.size() - 20);
+                for (int i = startIndex; i < history.size(); i++) {
+                    Map<String, String> h = history.get(i);
+                    if (h.containsKey("role") && h.containsKey("content")) {
+                        messages.add(h);
+                    }
                 }
             }
 
