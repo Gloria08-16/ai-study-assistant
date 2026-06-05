@@ -28,7 +28,13 @@ public class AiChatController {
         boolean useKnowledge = Boolean.TRUE.equals(request.getOrDefault("useKnowledge", false));
         // 接收对话历史上下文（前端传递的最近消息列表）
         List<Map<String, String>> history = (List<Map<String, String>>) request.get("messages");
-        String reply = aiChatService.chat(message, useKnowledge, history);
+        // 接收 AI 参数（温度、最大 token 数、模型选择）
+        Double temperature = request.containsKey("temperature")
+                ? ((Number) request.get("temperature")).doubleValue() : 0.7;
+        Integer maxTokens = request.containsKey("maxTokens")
+                ? ((Number) request.get("maxTokens")).intValue() : 2048;
+        String model = (String) request.getOrDefault("model", "deepseek-chat");
+        String reply = aiChatService.chat(message, useKnowledge, history, temperature, maxTokens, model);
         return Map.of("reply", reply);
     }
 
@@ -42,10 +48,17 @@ public class AiChatController {
         boolean useKnowledge = Boolean.TRUE.equals(request.getOrDefault("useKnowledge", false));
         // 接收对话历史上下文（前端传递的最近消息列表）
         List<Map<String, String>> history = (List<Map<String, String>>) request.get("messages");
+        // 接收 AI 参数（温度、最大 token 数、模型选择）
+        Double temperature = request.containsKey("temperature")
+                ? ((Number) request.get("temperature")).doubleValue() : 0.7;
+        Integer maxTokens = request.containsKey("maxTokens")
+                ? ((Number) request.get("maxTokens")).intValue() : 2048;
+        String model = (String) request.getOrDefault("model", "deepseek-chat");
         SseEmitter emitter = new SseEmitter(120000L); // 2分钟超时
 
         // 在独立线程中执行流式调用
-        new Thread(() -> aiChatService.chatStream(message, useKnowledge, emitter, history)).start();
+        new Thread(() -> aiChatService.chatStream(message, useKnowledge, emitter, history,
+                temperature, maxTokens, model)).start();
 
         return emitter;
     }

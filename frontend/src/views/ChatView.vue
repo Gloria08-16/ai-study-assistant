@@ -8,9 +8,22 @@
           <el-icon :size="18"><Plus /></el-icon>
         </button>
       </div>
+      <!-- 会话搜索框 -->
+      <div class="session-search-bar">
+        <el-icon :size="14" class="search-icon"><Search /></el-icon>
+        <input
+          v-model="searchQuery"
+          class="session-search-input"
+          placeholder="搜索会话..."
+          @click.stop
+        />
+        <button v-if="searchQuery" class="btn-clear-search" @click.stop="searchQuery = ''" title="清除">
+          <el-icon :size="12"><Close /></el-icon>
+        </button>
+      </div>
       <div class="session-list">
         <div
-          v-for="session in store.sessions"
+          v-for="session in filteredSessions"
           :key="session.id"
           :class="['session-item', { active: store.activeSessionId === session.id }]"
           @click="selectSession(session)"
@@ -35,15 +48,15 @@
             <el-icon :size="13"><Close /></el-icon>
           </button>
         </div>
-        <div v-if="store.sessions.length === 0" class="no-sessions">
-          暂无会话，点击 + 创建
+        <div v-if="filteredSessions.length === 0" class="no-sessions">
+          {{ searchQuery ? '未找到匹配的会话' : '暂无会话，点击 + 创建' }}
         </div>
       </div>
     </aside>
 
     <!-- 右侧主聊天区域 -->
     <section class="main-chat">
-      <div class="message-area" ref="messageArea">
+      <div class="message-area" ref="messageArea" @click="handleCopyCode">
         <div v-if="store.currentMessages.length === 0 && !loading" class="welcome">
           <div class="welcome-icon">✦</div>
           <h2>开始新的对话</h2>
@@ -72,7 +85,35 @@
             <el-switch v-model="useKnowledge" size="small" />
             <span class="rag-toggle-text">开启私人知识库增强</span>
           </label>
+          <button class="btn-settings-toggle" :class="{ active: showSettings }"
+            @click="showSettings = !showSettings" title="AI 参数设置">
+            <el-icon :size="15"><Setting /></el-icon>
+            <span>参数</span>
+          </button>
         </div>
+
+        <!-- AI 参数设置面板 -->
+        <div v-show="showSettings" class="settings-panel">
+          <div class="settings-row">
+            <label class="settings-label">模型</label>
+            <el-select v-model="model" size="small" class="settings-select">
+              <el-option v-for="opt in modelOptions" :key="opt.value"
+                :label="opt.label" :value="opt.value" />
+            </el-select>
+          </div>
+          <div class="settings-row">
+            <label class="settings-label">温度：{{ temperature }}</label>
+            <input type="range" min="0" max="2" step="0.1" v-model.number="temperature"
+              class="settings-slider" />
+            <span class="settings-hint">低=严谨 高=创意</span>
+          </div>
+          <div class="settings-row">
+            <label class="settings-label">最大长度：{{ maxTokens }}</label>
+            <input type="range" min="256" max="8192" step="256" v-model.number="maxTokens"
+              class="settings-slider" />
+          </div>
+        </div>
+
         <div class="input-wrapper">
           <textarea
             v-model="inputText"
@@ -81,10 +122,13 @@
             rows="1"
             @keydown="handleKeydown"
           ></textarea>
-          <button
+          <!-- 发送 / 停止按钮 -->
+          <button v-if="loading" class="btn-stop" @click="stopGeneration" title="停止生成">
+            <el-icon :size="18"><Close /></el-icon>
+          </button>
+          <button v-else
             class="btn-send"
-            :class="{ loading: loading }"
-            :disabled="!inputText.trim() || loading"
+            :disabled="!inputText.trim()"
             @click="sendMessage"
             title="发送"
           >
@@ -107,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import axios from 'axios'
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
@@ -133,9 +177,68 @@ const md = new MarkdownIt({
   }
 })
 
+// 自定义围栏代码块渲染：包裹在容器中并添加语言标签与复制按钮
+const defaultFence = md.renderer.rules.fence || function (tokens, idx, options, env, self) {
+  return self.renderToken(tokens, idx, options)
+}
+md.renderer.rules.fence = function (tokens, idx, options, env, self) {
+  const token = tokens[idx]
+  const lang = token.info.trim()
+  const code = token.content
+
+  // 高亮处理
+  let highlighted
+  if (lang && hljs.getLanguage(lang)) {
+    try {
+      highlighted = hljs.highlight(code, { language: lang, ignoreIllegals: true }).value
+    } catch (_) {
+      highlighted = md.utils.escapeHtml(code)
+    }
+  } else {
+    highlighted = md.utils.escapeHtml(code)
+  }
+
+  const langLabel = lang ? `<span class="code-lang">${lang}</span>` : ''
+
+  return `<div class="code-block-wrapper">`
+    + `<div class="code-block-header">${langLabel}<button class="btn-copy-code" title="复制代码"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>复制</span></button></div>`
+    + `<pre class="hljs"><code>${highlighted}</code></pre>`
+    + `</div>`
+}
+
 function renderMarkdown(text) {
   if (!text) return ''
   return md.render(text)
+}
+
+// 代码块复制（通过事件委托）
+function handleCopyCode(e) {
+  const btn = e.target.closest('.btn-copy-code')
+  if (!btn) return
+  const wrapper = btn.closest('.code-block-wrapper')
+  if (!wrapper) return
+  const code = wrapper.querySelector('code')
+  if (!code) return
+  navigator.clipboard.writeText(code.textContent || '').then(() => {
+    const span = btn.querySelector('span')
+    if (span) {
+      span.textContent = '已复制'
+      setTimeout(() => { span.textContent = '复制' }, 2000)
+    }
+  }).catch(() => {
+    // 降级方案
+    const textarea = document.createElement('textarea')
+    textarea.value = code.textContent || ''
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    const span = btn.querySelector('span')
+    if (span) {
+      span.textContent = '已复制'
+      setTimeout(() => { span.textContent = '复制' }, 2000)
+    }
+  })
 }
 
 // ---------- 本地状态 ----------
@@ -151,7 +254,30 @@ const deleteDialogVisible = ref(false)
 const deleteTargetId = ref(null)
 const deleteTargetTitle = ref('')
 
+// AI 参数设置
+const showSettings = ref(false)
+const temperature = ref(0.7)
+const maxTokens = ref(2048)
+const model = ref('deepseek-chat')
+const modelOptions = [
+  { value: 'deepseek-chat', label: 'DeepSeek Chat（通用对话）' },
+  { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner（深度推理）' }
+]
+
+// 会话搜索
+const searchQuery = ref('')
+
+// SSE 中断控制器
+const abortController = ref(null)
+
 const DEFAULT_GREETING = '你好，我是你的AI智能助学助手，在学习的过程中，有什么不明白、不确定的问题都可以问我'
+
+// 计算属性：根据搜索词过滤会话
+const filteredSessions = computed(() => {
+  if (!searchQuery.value.trim()) return store.sessions
+  const q = searchQuery.value.trim().toLowerCase()
+  return store.sessions.filter(s => s.title.toLowerCase().includes(q))
+})
 
 // ==================== 生命周期 ====================
 onMounted(async () => {
@@ -328,6 +454,10 @@ async function sendMessage() {
   const allMsgs = store.currentMessages
   const recentHistory = allMsgs.slice(-20).map(m => ({ role: m.role, content: m.content }))
 
+  // 创建 AbortController 用于中断请求
+  const controller = new AbortController()
+  abortController.value = controller
+
   try {
     const response = await fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
@@ -335,8 +465,12 @@ async function sendMessage() {
       body: JSON.stringify({
         message: text,
         useKnowledge: useKnowledge.value,
-        messages: recentHistory   // 对话历史上下文
-      })
+        messages: recentHistory,          // 对话历史上下文
+        temperature: temperature.value,   // 温度参数
+        maxTokens: maxTokens.value,       // 最大输出 token 数
+        model: model.value                // 模型选择
+      }),
+      signal: controller.signal
     })
 
     if (!response.ok) {
@@ -399,17 +533,39 @@ async function sendMessage() {
       }).catch(e => console.error('保存AI回复失败:', e))
     }
   } catch (e) {
-    console.error('SSE 流式请求失败:', e)
-    const msgs = store.currentMessages
-    const last = msgs[msgs.length - 1]
-    if (last && last.role === 'assistant' && last.content === '') {
-      last.content = '请求失败，请检查后端服务是否已启动。'
+    if (e.name === 'AbortError') {
+      // 用户主动中断：保留已生成的部分内容
+      console.log('用户中断了 AI 回答')
+      const msgs = store.currentMessages
+      const last = msgs[msgs.length - 1]
+      if (last && last.role === 'assistant' && last.content) {
+        // 已有部分内容，追加中断提示
+        store.appendToLastAssistant(sid, '\n\n---\n_（已停止生成）_')
+      } else if (last && last.role === 'assistant' && last.content === '') {
+        last.content = '_（已停止生成）_'
+      }
     } else {
-      store.addMessage(sid, { role: 'assistant', content: '请求失败，请检查后端服务是否已启动。' })
+      console.error('SSE 流式请求失败:', e)
+      const msgs = store.currentMessages
+      const last = msgs[msgs.length - 1]
+      if (last && last.role === 'assistant' && last.content === '') {
+        last.content = '请求失败，请检查后端服务是否已启动。'
+      } else {
+        store.addMessage(sid, { role: 'assistant', content: '请求失败，请检查后端服务是否已启动。' })
+      }
     }
   } finally {
     loading.value = false
+    abortController.value = null
     scrollToBottom()
+  }
+}
+
+// 停止 AI 生成
+function stopGeneration() {
+  if (abortController.value) {
+    abortController.value.abort()
+    abortController.value = null
   }
 }
 </script>
@@ -561,6 +717,58 @@ async function sendMessage() {
   text-align: center;
   color: #d1d5db;
   font-size: 13px;
+}
+
+/* ========== 会话搜索框 ========== */
+.session-search-bar {
+  display: flex;
+  align-items: center;
+  margin: 0 12px 4px;
+  padding: 7px 10px;
+  background: rgba(102, 126, 234, 0.06);
+  border-radius: 10px;
+  border: 1px solid rgba(102, 126, 234, 0.08);
+  gap: 6px;
+}
+
+.search-icon {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.session-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  color: #4b5563;
+  font-family: inherit;
+}
+
+.session-search-input::placeholder {
+  color: #c4c4c4;
+}
+
+.btn-clear-search {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.06);
+  color: #9ca3af;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-clear-search:hover {
+  background: rgba(0,0,0,0.12);
+  color: #6b7280;
 }
 
 /* ========== 主聊天区 ========== */
@@ -790,6 +998,72 @@ async function sendMessage() {
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1.2);
 }
 
+/* AI 参数设置按钮 */
+.btn-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  margin-left: auto;
+}
+
+.btn-settings-toggle:hover { color: #667eea; background: rgba(102, 126, 234, 0.06); }
+.btn-settings-toggle.active { color: #667eea; background: rgba(102, 126, 234, 0.1); }
+
+/* AI 参数设置面板 */
+.settings-panel {
+  width: 100%;
+  max-width: 720px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+
+.settings-select {
+  width: 220px;
+}
+
+.settings-slider {
+  flex: 1;
+  accent-color: #667eea;
+  height: 4px;
+  cursor: pointer;
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
 .input-wrapper {
   display: flex;
   align-items: flex-end;
@@ -848,7 +1122,33 @@ async function sendMessage() {
 }
 
 .btn-send:disabled { background: #e5e7eb; color: #d1d5db; cursor: not-allowed; box-shadow: none; }
-.btn-send.loading { background: linear-gradient(135deg, #a0c0f0 0%, #80d8e8 100%); pointer-events: none; }
+
+/* 停止生成按钮 */
+.btn-stop {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  animation: stopPulse 1.4s ease-in-out infinite;
+}
+
+.btn-stop:hover {
+  transform: scale(1.06);
+  box-shadow: 0 4px 18px rgba(239, 68, 68, 0.45);
+}
+
+@keyframes stopPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+}
 
 /* ========== 对话框按钮 ========== */
 .btn-cancel, .btn-danger {
@@ -883,8 +1183,57 @@ async function sendMessage() {
 }
 </style>
 
-<!-- 全局样式：毛玻璃弹窗 & 代码块换行（非 scoped 穿透 v-html）-->
+<!-- 全局样式：毛玻璃弹窗 & 代码块换行 & 代码复制按钮（非 scoped 穿透 v-html）-->
 <style>
+/* ===== 代码块容器与复制按钮 ===== */
+.code-block-wrapper {
+  position: relative;
+  margin: 10px 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #1e1e1e;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.code-lang {
+  font-size: 12px;
+  color: #888;
+  font-family: Consolas, Monaco, monospace;
+}
+
+.btn-copy-code {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 5px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.btn-copy-code:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  border-color: rgba(255,255,255,0.25);
+}
+
+.code-block-wrapper .hljs {
+  margin: 0 !important;
+  border-radius: 0 0 8px 8px !important;
+}
+
 /* ===== Markdown 代码块强制换行 ===== */
 .ai-reply-content pre {
   white-space: pre-wrap !important;

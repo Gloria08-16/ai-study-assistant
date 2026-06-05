@@ -59,9 +59,13 @@ public class AiChatService {
 
     /**
      * AI 对话 —— 调用 DeepSeek 大模型 API（非流式）
-     * @param history 对话历史，每条包含 role 和 content，用于上下文理解
+     * @param history      对话历史，每条包含 role 和 content，用于上下文理解
+     * @param temperature  温度参数（0~2），控制回答随机性
+     * @param maxTokens    最大输出 token 数
+     * @param model        模型名称（deepseek-chat / deepseek-reasoner）
      */
-    public String chat(String message, boolean useKnowledge, List<Map<String, String>> history) {
+    public String chat(String message, boolean useKnowledge, List<Map<String, String>> history,
+                       Double temperature, Integer maxTokens, String model) {
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -97,8 +101,10 @@ public class AiChatService {
             messages.add(userMsg);
 
             Map<String, Object> body = new HashMap<>();
-            body.put("model", "deepseek-chat");
+            body.put("model", model != null ? model : "deepseek-chat");
             body.put("messages", messages);
+            body.put("temperature", temperature != null ? temperature : 0.7);
+            body.put("max_tokens", maxTokens != null ? maxTokens : 2048);
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
             ResponseEntity<String> response = restTemplate.postForEntity(apiUrl, request, String.class);
@@ -119,10 +125,14 @@ public class AiChatService {
 
     /**
      * AI 流式对话 —— SSE 推送，打字机效果
-     * @param history 对话历史，每条包含 role 和 content，用于上下文理解
+     * @param history      对话历史，每条包含 role 和 content，用于上下文理解
+     * @param temperature  温度参数（0~2），控制回答随机性
+     * @param maxTokens    最大输出 token 数
+     * @param model        模型名称（deepseek-chat / deepseek-reasoner）
      */
     public void chatStream(String message, boolean useKnowledge, SseEmitter emitter,
-                           List<Map<String, String>> history) {
+                           List<Map<String, String>> history,
+                           Double temperature, Integer maxTokens, String model) {
         try {
             // 构建请求体（stream=true）
             List<Map<String, String>> messages = new ArrayList<>();
@@ -155,9 +165,11 @@ public class AiChatService {
             messages.add(userMsg);
 
             Map<String, Object> body = new HashMap<>();
-            body.put("model", "deepseek-chat");
+            body.put("model", model != null ? model : "deepseek-chat");
             body.put("messages", messages);
             body.put("stream", true);
+            body.put("temperature", temperature != null ? temperature : 0.7);
+            body.put("max_tokens", maxTokens != null ? maxTokens : 2048);
 
             String jsonBody = JSON.toJSONString(body);
 
